@@ -39,6 +39,18 @@ _SCRIPT_REL = Path("liepin/win/liepin_export_cookie.mjs")
 _AUTH_KEYS = ("lt_auth", "liepin_login_valid", "UniqueKey",
               "XSRF-TOKEN", "__sessionId", "_e_ld_auth_")
 
+
+# ---------- 原生分支（Windows 安装版）：自启专用登录浏览器 + Python CDP ----------
+def _native() -> bool:
+    """安装版判定（spec §4.4）：os.name == 'nt' —— 原生路径永不依赖 node/liepin-cli/WSL 组件。"""
+    return os.name == "nt"
+
+
+def _login_browser():
+    """延迟 import：登录浏览器仅在原生分支用到（playwright 系 lazy 加载，模块级导入无副作用）。"""
+    from .liepin import login_browser
+    return login_browser
+
 _STOP = threading.Event()
 _THREAD: threading.Thread | None = None
 _LOCK = threading.Lock()
@@ -108,6 +120,12 @@ def _ensure_ready() -> str | None:
     global _ready, _win_home, _cookie_file_win, _node_exe, _script_win
     if _ready:
         return None
+    if _native():
+        # 原生分支工具链 = 专用登录浏览器 profile（Python CDP 导出），零 node /
+        # liepin-cli / wslpath；目录由 login_browser 侧自理。首轮 _tick 会 stat
+        # Cookie 库 mtime——文件尚未生成时 OSError 跳过，浏览器登录后自然接上。
+        _ready = True
+        return None
     if _win_home is None:
         _win_home = _windows_home()
         if not _win_home:
@@ -127,7 +145,10 @@ def _ensure_ready() -> str | None:
 
 
 def _watch_paths() -> list[Path]:
-    """Cookie 库的 WSL 侧路径（解析不出主目录时为空列表）。"""
+    """Cookie 库路径：原生分支 = 登录浏览器 profile（Chrome>=130 在 Network/）；
+    WSL 分支维持原解析（liepin-cli 常驻 Chrome 的 .liepin-cli 路径）。"""
+    if _native():
+        return _login_browser().cookie_lib_paths()
     if _win_home is None:
         return []
     base = Path(_wslpath(os.path.join(_win_home, ".liepin-cli")))
@@ -138,6 +159,12 @@ def _watch_paths() -> list[Path]:
 def _export_header() -> tuple[bool, str, str]:
     """拉起 Windows 侧 CDP 助手，读回 cookie 头。返回 (ok, header|"", info|error)。"""
     err = _ensure_ready()
+    if _native():
+        # Python CDP 直连登录浏览器（零 node）；三元组契约与 WSL 分支一致
+        try:
+            return _login_browser().export_login_cookies()
+        except Exception as e:  # noqa: BLE001
+            return False, "", f"导出失败: {e}"
     if err:
         return False, "", err
     try:
