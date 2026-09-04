@@ -80,6 +80,13 @@ async def lifespan(app: FastAPI):
     yield
     cookie_import.stop()
     scheduler.stop()
+    if os.name == "nt":
+        # 回收本进程自启的登录浏览器（精确 PID，绝不碰用户浏览器）；幂等
+        try:
+            from .liepin import login_browser
+            login_browser.close_login_browser()
+        except Exception:  # noqa: BLE001 —— 关停失败不影响进程退出
+            log.exception("关闭登录浏览器失败")
 
 
 app = FastAPI(title="华联招聘 · 猎聘候选人智能搜寻", lifespan=lifespan)
@@ -593,6 +600,22 @@ def batch_refetch_status(rid: int):
 @app.post("/runs/{rid}/refetch-resumes/stop")
 def batch_refetch_stop(rid: int):
     return {"ok": True, "stopped": resume_batch_service.stop_batch()}
+
+
+# ================= 「打开浏览器登录」（spec §4.5）=================
+from .liepin import login_browser  # noqa: E402 —— 就近引用（先 grep 确认顶部未 import 过，重复则删本行）
+
+
+@app.post("/settings/liepin/open-login")
+def open_login_browser_endpoint():
+    """设置页『打开浏览器登录』：Windows 原生 → 可见窗口拉起专用登录浏览器并打开
+    猎聘登录页（登录由用户**手动**完成，绝不自动登录）；WSL 开发 → 引导文案。
+    只 relay {ok, message} / {ok: False, error}；明文 cookie 绝不出现。"""
+    try:
+        return login_browser.open_login_browser(_load_settings())
+    except Exception as e:  # noqa: BLE001 —— 任何失败如实回报
+        log.warning("open-login 失败: %s", type(e).__name__)
+        return {"ok": False, "error": f"打开登录浏览器失败: {type(e).__name__}: {e}"}
 
 
 # ================= 静态托管（前端零改动，spec §4.3）=================
