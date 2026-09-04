@@ -4,12 +4,16 @@ M1 提供：health + settings（含掩码占位）。后续里程碑在此文件
 （search/liepin/profiles/runs/invites 见对应模块，mounted 于此）。
 """
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import db
 from .security import encrypt_str, decrypt_str
@@ -134,6 +138,7 @@ def get_settings_endpoint():
             out[key] = MASKED_PLACEHOLDER
         else:
             out[key] = val
+    out["platform_native"] = os.name == "nt"   # spec §4.4：前端据此做原生/WSL 文案分支
     return out
 
 
@@ -588,4 +593,68 @@ def batch_refetch_status(rid: int):
 @app.post("/runs/{rid}/refetch-resumes/stop")
 def batch_refetch_stop(rid: int):
     return {"ok": True, "stopped": resume_batch_service.stop_batch()}
+
+
+# ================= 静态托管（前端零改动，spec §4.3）=================
+# 挂在文件最末：全部既有路由先注册，Starlette 按 routes 顺序匹配——
+# 新路由/既有路由天然优先于末尾 "/" mount。中间件靠后 add = 请求链外层，
+# scope["path"] 改写先于路由匹配生效。只有探测到前端产物才注册，纯 API 模式
+# 与现版行为一致。
+from pathlib import Path  # noqa: E402 —— tail 专用局部 import
+
+
+class _StripApiPrefix(BaseHTTPMiddleware):
+    """/api/* → /*：api.js baseURL='/api' 生产同源零改动（vite dev 代理做的事后端补上）。"""
+
+    async def dispatch(self, request, call_next):
+        path = request.scope.get("path", "")
+        if path.startswith("/api/"):
+            request.scope["path"] = path[len("/api"):] or "/"
+        elif path == "/api":
+            request.scope["path"] = "/"
+        return await call_next(request)
+
+
+class _SPAStaticFiles(StaticFiles):
+    """history 路由（前端 createWebHistory）兜底：静态文件未命中 → 回 index.html。
+    index.html 缺失时（目录探测已保证存在，正常不可达）404 直接上抛。"""
+
+    async def get_response(self, path: str, scope):
+        try:
+            resp = await super().get_response(path, scope)
+        except StarletteHTTPException as e:
+            if e.status_code != 404:
+                raise
+            return await super().get_response("index.html", scope)
+        if resp.status_code == 404:
+            return await super().get_response("index.html", scope)
+        return resp
+
+
+def _find_web_dir(root: Path | None = None) -> Path | None:
+    """按序探测前端产物目录：env RECRUIT_WEB_DIR → <程序根>/frontend/dist →
+    <程序根>/web；命中首个含 index.html 的返回，都不在 → None（纯 API 模式）。"""
+    base = root if root is not None else Path(__file__).resolve().parent.parent
+    candidates: list[Path] = []
+    env = os.environ.get("RECRUIT_WEB_DIR", "").strip()
+    if env:
+        candidates.append(Path(env))
+    candidates.append(base / "frontend" / "dist")
+    candidates.append(base / "web")
+    for d in candidates:
+        try:
+            if (d / "index.html").is_file():
+                return d
+        except OSError:
+            continue
+    return None
+
+
+_web_dir = _find_web_dir()
+if _web_dir:
+    log.info("托管前端产物: %s（/api 由中间件还原）", _web_dir)
+    app.add_middleware(_StripApiPrefix)
+    app.mount("/", _SPAStaticFiles(directory=str(_web_dir), html=True), name="web")
+else:
+    log.info("未找到前端产物目录，纯 API 模式（与现版一致）")
 
