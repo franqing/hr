@@ -137,6 +137,11 @@ def _wsl_gateway() -> str:
         "无法确定 WSL 网关地址（需要 WSL2 NAT 网络）：请检查 ip route")
 
 
+def _win_native() -> bool:
+    """Windows 原生判定（spec §4.4）：os.name == 'nt' 恒为真，不做任何启发式探测。"""
+    return os.name == "nt"
+
+
 def _windows_kill_listener(port: int) -> int:
     """精确杀掉 Windows 侧监听指定端口的进程（netstat 定位 PID → taskkill /PID /F /T）。
     仅限本应用私有端口（_RELAY_PORT / _CDP_PORT 等自己拉起的）；绝不 taskkill /IM ——
@@ -464,6 +469,12 @@ class LiepinSession:
             "配置 LIEPIN_BROWSER_REMOTE_DEBUGGING_PORT 更换后重试。")
 
     def _launch_with_retry(self, attempts: int):
+        if _win_native():
+            # §4.4 硬门控：Windows 原生（同事机器零 WSL）——CDP 桥 / PowerShell relay /
+            # wslpath / /mnt/c 探测等整段互操作代码在 os.name=='nt' 下**永不进入执行**。
+            if self.attach:
+                return self._attach_native()
+            return self._launch_native()
         if self.attach:
             # 附件模式不重试：目标 Chrome 不在就是不在（新起实例违背用户意图），
             # 直接报错引导先跑 liepin login；也绝不 _cleanup_stale_profiles——
@@ -582,6 +593,84 @@ class LiepinSession:
             _windows_kill_listener(_CDP_PORT)
             _windows_kill_listener(_RELAY_PORT)
             raise
+
+    def _launch_native(self):
+        """Windows 原生启动（os.name=='nt'，spec §4.4）：playwright 在本机直接拉起。
+
+        默认 channel=chromium → 随包分发的 playwright chromium（静默语义与 WSL 原版
+        一致：headless=self.headless）；chrome/msedge → playwright 原生 channel=
+        自动探测本机安装（Windows 上无需跨盘路径桥）；显式 executable 优先。
+        探测不到/启动失败 → LiepinLoginError 清晰引导，**绝不静默换引擎**。
+        每次失败退避节奏与既有 WSL bundled 分支一致（约 5s × 4 次）。
+        """
+        last: Exception | None = None
+        for _attempt in range(4):
+            try:
+                # 调用与既有 bundled 启动段同源（kwargs 见 _native_launch_kwargs），
+                # 只改数据目录来源为 str(user_data_dir())，其余 WSL 互操作逻辑不涉及。
+                kwargs = self._native_launch_kwargs()
+                return self._pw.chromium.launch_persistent_context(**kwargs)
+            except LiepinLoginError:
+                raise
+            except Exception as e:  # noqa: BLE001
+                last = e
+                time.sleep(5)
+        raise LiepinLoginError(
+            "浏览器启动失败（Windows 原生）："
+            f"{type(last).__name__}: {last}\n"
+            "排查建议：① 默认用随包分发的 Chromium，无需本机安装；"
+            "② 通道选 Chrome 请确认已安装（或改回默认 Chromium）；"
+            "③ data\\browser_profile 未被其它进程占用；"
+            "④ 填了代理请确认代理已启动。")
+
+    def _native_launch_kwargs(self) -> dict:
+        """原生启动参数。与既有 bundled 分支同源，逐项核对既有 kwargs 后保留差异项：
+        必含 user_data_dir=str(user_data_dir())、headless=self.headless；
+        分支：显式 executable → executable_path=（不存在 → LiepinLoginError）；
+        channel in ("chrome", "msedge") → channel=channel（playwright 自探测）；
+        代理 → proxy={"server": ...}；既有分支里其它 args 照抄。
+        """
+        kwargs: dict = {"user_data_dir": str(user_data_dir()),
+                        "headless": self.headless,
+                        "args": ["--disable-blink-features=AutomationControlled"]}
+        exe = (getattr(self, "executable", None) or "").strip()
+        channel = (getattr(self, "channel", None) or "chromium").strip().lower()
+        if exe:
+            if not Path(exe).is_file():
+                raise LiepinLoginError(f"浏览器可执行文件不存在: {exe}")
+            kwargs["executable_path"] = exe
+        elif channel in ("chrome", "msedge"):
+            kwargs["channel"] = channel
+        if self.proxy:
+            kwargs["proxy"] = {"server": self.proxy}
+        return kwargs
+
+    def _attach_native(self):
+        """原生 attach（spec §4.4/§4.5）：复用『打开浏览器登录』专用实例——同一 CDP
+        基址与已登录 profile，页面以标签页开在专用窗口里（用户可见、可关）。
+
+        绝不新起浏览器实例；实例未开/已手动关闭 → 明确报错引导先点「打开浏览器登录」；
+        绝不清除/注入 cookie、绝不关闭该浏览器。收尾赋值照既有 attach 分支
+        （self._ctx/self._page/self._cdp 键名一致），调用方无感知。
+        """
+        from . import login_browser
+        base = login_browser.cdp_base_url()
+        if not base:
+            raise LiepinLoginError(
+                "登录浏览器没在运行。请先在设置页点『打开浏览器登录』并手动完成猎聘登录，"
+                "再开启『在登录的浏览器里开着页面操作』测试；或关掉开关用静默模式（默认）。")
+        try:
+            browser = self._pw.chromium.connect_over_cdp(base, timeout=10_000)
+            ctx = browser.contexts[0] if browser.contexts else browser.new_context()
+        except Exception as e:  # noqa: BLE001
+            raise LiepinLoginError(
+                f"连接登录浏览器失败: {type(e).__name__}: {e}\n"
+                "登录浏览器可能已被手动关闭——重新点『打开浏览器登录』即可。")
+        # 收尾赋值与既有 attach 分支一致（返回 ctx 供 __init__ 赋给 self._ctx）
+        self._ctx = ctx
+        self._page = None
+        self._cdp = {"base": base, "attach": True, "native": True}
+        return ctx
 
     def _release_lock(self):
         if self._lock_held:
@@ -1068,7 +1157,10 @@ class LiepinSession:
                 self._ctx = None
                 self._page = None
                 if self._cdp:
-                    _windows_kill_listener(_RELAY_PORT)
+                    # 原生 attach（native=True）：登录浏览器归 login_browser 模块回收
+                    # （lifespan 精确 PID），这里只清状态，绝不动其端口/进程。
+                    if not self._cdp.get("native"):
+                        _windows_kill_listener(_RELAY_PORT)
                     self._cdp = None
                 return
             if self._ctx:
