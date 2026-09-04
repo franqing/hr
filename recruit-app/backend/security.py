@@ -1,18 +1,24 @@
 """密钥与脱敏工具。密钥文件 data/secret.key 机器绑定，不提交 git。"""
 import re
-from pathlib import Path
+
 from cryptography.fernet import Fernet
 
+from .paths import data_dir
+
 SECRET_FIELD_RE = re.compile(r"电话|手机|邮箱|联系方式|微信|身份证")
-_KEY_PATH = Path(__file__).resolve().parent.parent / "data" / "secret.key"
 
 
 def get_fernet() -> Fernet:
-    if not _KEY_PATH.exists():
-        _KEY_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _KEY_PATH.write_bytes(Fernet.generate_key())
-        _KEY_PATH.chmod(0o600)
-    return Fernet(_KEY_PATH.read_bytes())
+    """取（必要时生成）本机 Fernet 密钥。密钥只在 data_dir 下，每机独立。"""
+    key_path = data_dir() / "secret.key"
+    if not key_path.exists():
+        key_path.parent.mkdir(parents=True, exist_ok=True)
+        key_path.write_bytes(Fernet.generate_key())
+        try:
+            key_path.chmod(0o600)
+        except OSError:  # noqa: BLE001 —— Windows 无 POSIX 权限位，忽略
+            pass
+    return Fernet(key_path.read_bytes())
 
 
 def encrypt_str(s: str) -> str:

@@ -1,9 +1,10 @@
 """SQLite 存取。所有模块共用此连接模式（照抄 BOM-AI：内联 schema + _migrate）。"""
-import json, sqlite3
-from pathlib import Path
+import json
+import sqlite3
 from datetime import datetime
 
-_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "app.db"
+from .paths import data_dir
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS settings(
   key TEXT PRIMARY KEY, value_json TEXT, updated_at TEXT);
@@ -70,8 +71,9 @@ CREATE TABLE IF NOT EXISTS tag_members(
 
 
 def get_conn() -> sqlite3.Connection:
-    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(_DB_PATH)
+    db_path = data_dir() / "app.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
     _migrate(conn)

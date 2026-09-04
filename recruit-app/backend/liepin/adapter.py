@@ -27,7 +27,10 @@ from .. import db
 
 log = logging.getLogger("recruit.liepin")
 
-USER_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "browser_profile"
+def user_data_dir() -> Path:
+    """浏览器 profile 数据目录（= data_dir()/browser_profile）。call-time 解析。"""
+    from ..paths import data_dir
+    return data_dir() / "browser_profile"
 CACHE_TTL = timedelta(hours=24)
 _CODES = json.loads((Path(__file__).resolve().parent / "codes.json").read_text(encoding="utf-8"))
 CODES = _CODES  # 公开别名：run_service / invite_service 读取限额等配置
@@ -64,7 +67,7 @@ _LIEPIN_LOCK = threading.Lock()
 
 
 def _cleanup_stale_profiles() -> int:
-    marker = f"--user-data-dir={USER_DATA_DIR}"
+    marker = f"--user-data-dir={user_data_dir()}"
     try:
         out = subprocess.run(["pgrep", "-f", marker], capture_output=True,
                              text=True, timeout=10)
@@ -209,10 +212,10 @@ def _windows_listening(ports: tuple[int, ...]) -> list[int]:
 def _clear_profile_locks() -> int:
     """删除 profile 目录里残留的 Singleton* 锁文件。Edge 被异常终止后，残留锁会让
     下次启动静默 exit 21（空日志即退）——外部拉起前必须清理。"""
-    if not USER_DATA_DIR.is_dir():
+    if not user_data_dir().is_dir():
         return 0
     n = 0
-    for f in USER_DATA_DIR.glob("Singleton*"):
+    for f in user_data_dir().glob("Singleton*"):
         try:
             f.unlink()
             n += 1
@@ -494,7 +497,7 @@ class LiepinSession:
         for i in range(attempts):
             try:
                 kwargs = {
-                    "user_data_dir": str(USER_DATA_DIR),
+                    "user_data_dir": str(user_data_dir()),
                     "headless": self.headless,
                     "args": ["--disable-blink-features=AutomationControlled"],
                 }
@@ -530,7 +533,7 @@ class LiepinSession:
         _windows_kill_listener(_CDP_PORT)
         _windows_kill_listener(_RELAY_PORT)
         argv = [exe,
-                f"--user-data-dir={_win_path(USER_DATA_DIR)}",  # Windows 真实路径，绕开畸形路径
+                f"--user-data-dir={_win_path(user_data_dir())}",  # Windows 真实路径，绕开畸形路径
                 f"--remote-debugging-port={_CDP_PORT}",
                 "--no-first-run"]
         if self.headless:

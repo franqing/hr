@@ -13,6 +13,7 @@ import pypdf
 
 from .llm_client import LLMUnavailable, chat_json
 from . import profile as P
+from .paths import data_dir
 
 # 目标公司候选词库（规则兜底用；命中即入硬性门槛目标公司）
 _COMPANY_LEXICON = [
@@ -30,7 +31,8 @@ _EDU_LEXICON = ["985/211", "985", "211", "硕士", "博士", "研究生", "本�
 _TITLE_LEXICON = ["研发负责人", "技术总监", "技术负责人", "研发总监", "技术一号位",
                   "研发主管", "工程总监", "技术经理", "产品总监"]
 
-_UPLOAD_DIR = Path(__file__).resolve().parent.parent / "data" / "uploads"
+def upload_dir() -> Path:
+    return data_dir() / "uploads"
 
 
 class ScanPdfError(Exception):
@@ -128,7 +130,7 @@ def save_upload(filename: str, data: bytes) -> Path:
     name = filename.lower()
     if not name.endswith(".pdf"):
         raise ValueError("仅支持 .pdf 文件")
-    _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    dest = _UPLOAD_DIR / f"upload-{int(__import__('time').time() * 1000)}.pdf"
+    dest = upload_dir() / f"upload-{int(__import__('time').time() * 1000)}.pdf"
+    dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(data)
     return dest
