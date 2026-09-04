@@ -12,6 +12,7 @@ export const api = {
   putSettings: (values) => http.put('/settings', { values }),
   testLiepin: (values) => http.post('/settings/liepin/test', values),
   importLiepin: () => http.post('/settings/liepin/import'),
+  openLoginBrowser: () => http.post('/settings/liepin/open-login'),
 
   // profiles（人才画像）
   listProfiles: () => http.get('/profiles'),

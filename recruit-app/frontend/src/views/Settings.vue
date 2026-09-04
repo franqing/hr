@@ -6,6 +6,8 @@ import { api, errMsg } from '../api'
 const loading = ref(false)
 const testing = ref(false)
 const importing = ref(false)
+const openingLogin = ref(false)
+const isNative = ref(false)
 
 // 表单值。密文字段用 "已配置" 占位表示已有值。
 const form = reactive({
@@ -43,6 +45,8 @@ const load = async () => {
         form[k] = data[k] ?? ''
       }
     }
+    // platform_native = Windows 原生（安装版）：控制登录导入按钮组与文案分支
+    isNative.value = !!data.platform_native
   } catch (e) {
     ElMessage.error(errMsg(e))
   } finally {
@@ -131,6 +135,24 @@ const importLiepin = async () => {
   }
 }
 
+const openLoginBrowser = async () => {
+  // Windows 原生主路径：可见窗口拉起专用登录浏览器；用户手动登录后 ~20s 自动导入
+  openingLogin.value = true
+  try {
+    const { data } = await api.openLoginBrowser()
+    if (data.ok) {
+      ElMessage.success(data.message || '登录浏览器已打开，请在弹出的窗口手动登录')
+      await load()
+    } else {
+      ElMessage.error(data.error || '打开登录浏览器失败')
+    }
+  } catch (e) {
+    ElMessage.error(errMsg(e, '打开登录浏览器失败'))
+  } finally {
+    openingLogin.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -156,7 +178,18 @@ onMounted(load)
             :placeholder="masked.liepin_cookie ? '当前已配置（粘贴新值覆盖，或清空后保存以清除）' : '从浏览器 DevTools → Application → Cookies 复制 Cookie 头'"
           />
         </el-form-item>
-        <el-form-item>
+        <el-form-item v-if="isNative">
+          <el-button type="primary" :loading="openingLogin" @click="openLoginBrowser">打开浏览器登录</el-button>
+          <el-button :loading="importing" @click="importLiepin">立即导入</el-button>
+          <el-button type="primary" :loading="testing" @click="testLiepin">测试连接</el-button>
+          <span class="muted" style="margin-left: 12px; display: block; margin-top: 4px">
+            <b>点「打开浏览器登录」会弹出一个专用浏览器窗口</b>（独立资料目录，不会碰你日常用的
+            Chrome/Edge）；在弹出的窗口里<b>手动</b>输入账号密码或扫码（系统绝不自动登录）。
+            登录完成后约 20 秒，系统会自动把会话导入并加密保存在本机；也可点「立即导入」不等。
+            粘贴 Cookie 仍可作为兜底。
+          </span>
+        </el-form-item>
+        <el-form-item v-else>
           <el-button type="primary" plain :loading="importing" @click="importLiepin">从 liepin login 导入</el-button>
           <el-button type="primary" :loading="testing" @click="testLiepin">测试连接</el-button>
           <span class="muted" style="margin-left: 12px">
@@ -244,17 +277,27 @@ onMounted(load)
             v-model="form.browser_attach"
             active-value="true"
             inactive-value="false"
-            active-text="在登录的 Chrome 里开着页面操作（可选）"
+            :active-text="isNative ? '在登录浏览器里开着页面操作（登录窗口别关，可选）' : '在登录的 Chrome 里开着页面操作（可选）'"
             inactive-text="完全静默运行（默认，与原版一致）"
           />
           <div class="muted" style="margin-top: 6px; line-height: 1.6">
-            <b>默认（开关关闭）＝ 原版静默模式</b>：运行/拉岗位/邀请全程<b>不弹出任何猎聘页面</b>，
-            用下方设置的浏览器（默认 Chrome 无头引擎）在后台跑，靠已保存的 Cookie 保持登录。
-            Cookie 来源：在终端跑一次 <b>liepin login</b>（会自动打开 Chrome 完成登录），
-            系统约 20 秒内自动把会话导入；也可点「从 liepin login 导入」立即导入。
-            <br />
-            仅在你想<b>亲眼看着</b>每一步操作时，再打开上面的开关：页面会在你登录的那个 Chrome 里
-            以标签页形式打开（结束后自动关闭），不另弹新窗口，也绝不会关闭你的 Chrome。
+            <template v-if="isNative">
+              <b>默认（开关关闭）＝ 静默模式</b>：运行/拉岗位/邀请全程<b>不弹出任何猎聘页面</b>，
+              靠已保存的 Cookie 在后台登录跑任务（默认用随安装包分发的 Chromium 引擎）。
+              Cookie 来源：设置页点「打开浏览器登录」完成手动登录后自动导入；粘贴 Cookie 兜底。
+              <br />
+              仅在你想<b>亲眼看着</b>每一步操作时，再打开上面的开关：页面会开在你登录的那个
+              专用浏览器窗口里（登录窗口别关；任务结束后自动关标签页），绝不影响你日常的浏览器。
+            </template>
+            <template v-else>
+              <b>默认（开关关闭）＝ 原版静默模式</b>：运行/拉岗位/邀请全程<b>不弹出任何猎聘页面</b>，
+              用下方设置的浏览器（默认 Chrome 无头引擎）在后台跑，靠已保存的 Cookie 保持登录。
+              Cookie 来源：在终端跑一次 <b>liepin login</b>（会自动打开 Chrome 完成登录），
+              系统约 20 秒内自动把会话导入；也可点「从 liepin login 导入」立即导入。
+              <br />
+              仅在你想<b>亲眼看着</b>每一步操作时，再打开上面的开关：页面会在你登录的那个 Chrome 里
+              以标签页形式打开（结束后自动关闭），不另弹新窗口，也绝不会关闭你的 Chrome。
+            </template>
           </div>
         </el-form-item>
         <el-row :gutter="16">
@@ -276,14 +319,14 @@ onMounted(load)
           </el-col>
         </el-row>
         <el-form-item label="浏览器可执行文件（可选）">
-          <el-input v-model="form.browser_executable" placeholder="留空自动探测。WSL 下可用：/mnt/c/Program Files/Google/Chrome/Application/chrome.exe" />
+          <el-input v-model="form.browser_executable" :placeholder="isNative ? '留空自动探测（推荐）。填绝对路径可指定特定浏览器' : '留空自动探测。WSL 下可用：/mnt/c/Program Files/Google/Chrome/Application/chrome.exe'" />
         </el-form-item>
         <el-form-item>
           <span class="muted">
             默认静默模式使用下方「无头模式 / 浏览器通道 / 可执行文件」以已保存 Cookie 后台运行：
             <b>无头模式保持开启</b>即完全不弹任何页面（原版行为）；「浏览器通道」选 Chrome 即用
-            本机 Chrome 引擎跑（本机为 WSL2 无图形界面，走 Windows Chrome 无头）。
-            仅当你打开上方「在登录的 Chrome 里开着页面操作」开关时，才忽略下方这些设置。
+            本机 Chrome 引擎跑。仅当你打开上方「在登录的浏览器里开着页面操作」开关时，才忽略
+            下方这些设置（页面开在登录浏览器窗口里）。
           </span>
         </el-form-item>
       </el-form>
@@ -305,7 +348,11 @@ onMounted(load)
           </el-col>
         </el-row>
         <el-form-item>
-          <span class="muted">
+          <span class="muted" v-if="isNative">
+            访问猎聘必需（通常是科学上网工具），公司网络直连猎聘被重置时必填。填本机代理端口即可，
+            如 http://127.0.0.1:7890；「打开浏览器登录」和后台任务都会走这份代理设置。
+          </span>
+          <span class="muted" v-else>
             WSL 无法直连猎聘时（连接被重置）必填。填 Windows 侧代理端口即可，系统会自动走 WSL → 宿主机代理。
           </span>
         </el-form-item>
