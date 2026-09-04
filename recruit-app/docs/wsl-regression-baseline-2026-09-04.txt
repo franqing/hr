@@ -1,0 +1,126 @@
+# WSL regression baseline 2026-09-04: 11 failed, 60 passed — 7 test_adapter + 4 test_search_planner, all pre-existing code/test drift (plan premise of 5 stale adapter failures corrected by user confirmation)
+........FFF..FFFF...................................FF..F......F.......  [100%]
+=================================== FAILURES ===================================
+_________________________ test_extract_cards_normalize _________________________
+
+    def test_extract_cards_normalize():
+        data = {"data": {"data": [{
+            "resumeId": "R1", "userName": "张三", "age": 40, "resumeUrl": "/cv/abc",
+            "desiredTitle": "研发总监", "currentCompany": "三安光电",
+        }], "total": 1}}
+        cards, total = adapter.LiepinSession._extract_cards(_fake(), data)
+        assert total == 1
+>       c = cards[0]
+            ^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_adapter.py:76: IndexError
+_______________________ test_extract_cards_age_tolerant ________________________
+
+    def test_extract_cards_age_tolerant():
+        data = {"data": {"data": [{"resumeId": "R2", "age": "38", "userName": "李四"}], "total": 1}}
+        cards, _ = adapter.LiepinSession._extract_cards(_fake(), data)
+>       assert cards[0]["age"] == 38
+               ^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_adapter.py:86: IndexError
+__________________ test_extract_cards_resume_id_fallback_url ___________________
+
+    def test_extract_cards_resume_id_fallback_url():
+        data = {"data": {"data": [{"resumeUrl": "https://lpt.liepin.com/cv/xyz", "userName": "赵六"}],
+                         "total": 1}}
+        cards, _ = adapter.LiepinSession._extract_cards(_fake(), data)
+>       assert cards[0]["resume_id"] == "https://lpt.liepin.com/cv/xyz"
+               ^^^^^^^^
+E       IndexError: list index out of range
+
+tests/test_adapter.py:96: IndexError
+________________________ test_check_bff_risk_401_login _________________________
+
+    def test_check_bff_risk_401_login():
+>       with pytest.raises(adapter.LiepinLoginError):
+E       Failed: DID NOT RAISE LiepinLoginError
+
+tests/test_adapter.py:110: Failed
+_____________________ test_send_invite_placeholder_raises ______________________
+
+    def test_send_invite_placeholder_raises():
+        """端点未校准（PLACEHOLDER）时明确报错，不静默发错请求。"""
+        with pytest.raises(adapter.LiepinRiskError, match="尚未校准"):
+>           adapter.LiepinSession.send_invite(_fake(), "R1", "J1", "你好")
+E           TypeError: LiepinSession.send_invite() takes 3 positional arguments but 4 were given
+
+tests/test_adapter.py:118: TypeError
+_____________________________ test_wsl_to_windows ______________________________
+
+    def test_wsl_to_windows():
+>       assert adapter._wsl_to_windows("/mnt/c/Users/foo") == "C:\\Users\\foo"
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'backend.liepin.adapter' has no attribute '_wsl_to_windows'
+
+tests/test_adapter.py:123: AttributeError
+_________________ test_wsl_to_windows_non_mnt_replaces_slashes _________________
+
+    def test_wsl_to_windows_non_mnt_replaces_slashes():
+>       assert adapter._wsl_to_windows("/home/user") == "\\home\\user"
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'backend.liepin.adapter' has no attribute '_wsl_to_windows'
+
+tests/test_adapter.py:128: AttributeError
+___________________________ test_parse_region_single ___________________________
+
+    def test_parse_region_single():
+>       assert sp._parse_region("厦门") == [750]
+E       AssertionError: assert ['110030'] == [750]
+E         
+E         At index 0 diff: '110030' != 750
+E         Use -v to get more diff
+
+tests/test_search_planner.py:8: AssertionError
+___________________________ test_parse_region_multi ____________________________
+
+    def test_parse_region_multi():
+>       assert sp._parse_region("上海 / 深圳") == [680, 710]
+E       AssertionError: assert ['020', '050090'] == [680, 710]
+E         
+E         At index 0 diff: '020' != 680
+E         Use -v to get more diff
+
+tests/test_search_planner.py:12: AssertionError
+____________________________ test_parse_region_list ____________________________
+
+    def test_parse_region_list():
+>       assert sp._parse_region(["厦门"]) == [750]
+E       AssertionError: assert ['110030'] == [750]
+E         
+E         At index 0 diff: '110030' != 750
+E         Use -v to get more diff
+
+tests/test_search_planner.py:32: AssertionError
+________________________ test_hard_region_generates_dqs ________________________
+
+    def test_hard_region_generates_dqs():
+        prof = default_seed_profile()
+        prof["地域"] = "厦门"
+        f = sp._derive_filters(prof)
+>       assert f.get("dqs") == [750]
+E       AssertionError: assert ['110030'] == [750]
+E         
+E         At index 0 diff: '110030' != 750
+E         Use -v to get more diff
+
+tests/test_search_planner.py:76: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_adapter.py::test_extract_cards_normalize - IndexError: list...
+FAILED tests/test_adapter.py::test_extract_cards_age_tolerant - IndexError: l...
+FAILED tests/test_adapter.py::test_extract_cards_resume_id_fallback_url - Ind...
+FAILED tests/test_adapter.py::test_check_bff_risk_401_login - Failed: DID NOT...
+FAILED tests/test_adapter.py::test_send_invite_placeholder_raises - TypeError...
+FAILED tests/test_adapter.py::test_wsl_to_windows - AttributeError: module 'b...
+FAILED tests/test_adapter.py::test_wsl_to_windows_non_mnt_replaces_slashes - ...
+FAILED tests/test_search_planner.py::test_parse_region_single - AssertionErro...
+FAILED tests/test_search_planner.py::test_parse_region_multi - AssertionError...
+FAILED tests/test_search_planner.py::test_parse_region_list - AssertionError:...
+FAILED tests/test_search_planner.py::test_hard_region_generates_dqs - Asserti...
+11 failed, 60 passed in 9.64s
