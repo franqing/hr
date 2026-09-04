@@ -1,0 +1,441 @@
+{
+  "_comment": "猎聘企业端(LPT)请求契约，已对照 @viyzhu/liepin-cli 源码 + 抓包校准（2026-09）。所有 LPT BFF 均为 application/x-www-form-urlencoded；复合字段值是 JSON 字符串。",
+  "portal": {
+    "url": "https://lpt.liepin.com/search",
+    "passport_hosts": [
+      "passport.liepin.com",
+      "login.liepin.com",
+      "passport.zhaopin.com"
+    ],
+    "client_id": "40156"
+  },
+  "endpoints": {
+    "search": "https://api-lpt.liepin.com/api/com.liepin.searchfront4r.b.search",
+    "resume": "https://api-lpt.liepin.com/api/com.liepin.rresume.usere.pc.resume-view",
+    "jobs": "https://api-lpt.liepin.com/api/com.liepin.recruitbff.lpt.jobmanage.list",
+    "invite": "https://api-lpt.liepin.com/api/com.liepin.im.b.chat.to-chat2",
+    "has_chat": "https://api-lpt.liepin.com/api/com.liepin.im.b.chat.has-chat",
+    "chat_jobs": "https://api-lpt.liepin.com/api/com.liepin.im.b.chat.get-job-chat-list",
+    "check_chat_priv": "https://api-lpt.liepin.com/api/com.liepin.imbusiness.bpc.check-chat-privlege",
+    "im_chat_list": "https://api-lpt.liepin.com/api/com.liepin.im.b.chat.chat-list"
+  },
+  "headers": {
+    "comment": "与 lptFetch（liepin-cli 校准源）逐项一致。origin/referer 为 httpx 兜底保留。",
+    "accept": "application/json, text/plain, */*",
+    "content_type": "application/x-www-form-urlencoded",
+    "x_client_type": "web",
+    "x_requested_with": "XMLHttpRequest",
+    "x_fscp_version": "1.1",
+    "x_fscp_std_info": "{\"client_id\": \"40156\"}",
+    "x_fscp_fe_version": "",
+    "x_fscp_bi_stat": "{\"location\": \"https://lpt.liepin.com/search\"}",
+    "origin": "https://lpt.liepin.com",
+    "referer": "https://lpt.liepin.com/search"
+  },
+  "_risk": {
+    "comment": "风控/登录判定标记。命中即停止，让人工介入。",
+    "url_markers": {
+      "login": [
+        "passport.liepin.com",
+        "passport.zhaopin.com",
+        "lpt.liepin.com/login",
+        "/login?",
+        "/login/"
+      ],
+      "risk": [
+        "verify",
+        "security-check",
+        "captcha"
+      ]
+    },
+    "body_markers": {
+      "login": [
+        "passport",
+        "登录",
+        "login"
+      ],
+      "risk": [
+        "行为异常",
+        "滑块",
+        "captcha",
+        "verify",
+        "code:4010000",
+        "verifyCode"
+      ]
+    }
+  },
+  "search_body_vo": {
+    "comment": "cvSearchConditionInputVo 默认值（与 liepin-cli buildSearchBody 一致）。adapter 会注入 keys/curPage 并把画像筛选翻译为码值；logForm 每次请求生成。",
+    "suggestKey": "",
+    "searchRefer": "1",
+    "cvSearchForm": 0,
+    "searchKey": "",
+    "filterKey": "",
+    "degrade": "",
+    "csCreateTimeFlag": "",
+    "csCreateTime": "",
+    "csId": "",
+    "curPage": 0,
+    "keys": "",
+    "showKeys": "",
+    "searchLevel": "",
+    "dqs": "",
+    "wantDqs": "",
+    "workyears": "0,99",
+    "eduLevels": [],
+    "industrys": "",
+    "jobtitles": "",
+    "wantIndustrys": "",
+    "wantJobTitles": "",
+    "activeStatus": "",
+    "userStatus": "",
+    "yearSalarylow": "",
+    "yearSalaryhigh": "",
+    "wantYearSalaryLow": "",
+    "wantYearSalaryHigh": "",
+    "sex": "",
+    "age": "",
+    "special": "",
+    "sortflag": "",
+    "abroadEdu": "",
+    "abroadExp": "",
+    "manageExp": "",
+    "language_skills": "",
+    "language_content": "",
+    "filterRead": "",
+    "filterChat": "",
+    "filterDownload": "",
+    "lastWork": "",
+    "titleKeys": "",
+    "titleSearchFilter": "0",
+    "companyKeys": "",
+    "compSearchFilter": "0",
+    "interactiveVersion": "v2",
+    "jobId": "",
+    "pubJobTitle": "",
+    "schoolKindList": [],
+    "graduationYearList": [],
+    "eduLevelTzCode": "",
+    "resLanguage": "",
+    "pushId": "",
+    "jobStability": "",
+    "school": "",
+    "smartReadToken": "",
+    "taskId": "",
+    "searchBatchId": "",
+    "aimultikeyId": "",
+    "keysRelation": ""
+  },
+  "code_tables": {
+    "comment": "画像中文筛选 → 猎聘搜索码（LPT 码位，与 liepin-cli 同源）。workyears/age 为 '低,高' 区间串；dqs 为城市码串，多选逗号连接。",
+    "workyears": {
+      "应届": "0,1",
+      "1-3年": "1,3",
+      "3-5年": "3,5",
+      "5-10年": "5,10",
+      "10年以上": "10,99"
+    },
+    "degree": {
+      "博士": "010",
+      "硕士": "030",
+      "本科": "040",
+      "大专": "050"
+    },
+    "degree_ladder": {
+      "comment": "画像学历词 → 猎聘 eduLevels 码数组（含更高学历，如 本科要求 = 本科及以上）。",
+      "博士": [
+        "010"
+      ],
+      "硕士": [
+        "030",
+        "010"
+      ],
+      "本科": [
+        "040",
+        "030",
+        "010"
+      ],
+      "大专": [
+        "050",
+        "040",
+        "030",
+        "010"
+      ]
+    },
+    "city": {
+      "北京": "010",
+      "上海": "020",
+      "天津": "030",
+      "重庆": "040",
+      "广州": "050020",
+      "深圳": "050090",
+      "佛山": "050060",
+      "东莞": "050070",
+      "南京": "060020",
+      "苏州": "060080",
+      "无锡": "060030",
+      "杭州": "070020",
+      "宁波": "070030",
+      "厦门": "110030",
+      "福州": "110020",
+      "青岛": "120020",
+      "武汉": "170020",
+      "长沙": "180020",
+      "成都": "280020",
+      "西安": "270020"
+    }
+  },
+  "card_fields": {
+    "comment": "搜索结果卡片字段（searchfront4r 返回形状，与 liepin-cli mapJobCard 对齐）。workExpList/eduExpList 取首条；_pick 支持数字键索引列表。",
+    "resume_id": [
+      [
+        "resIdEncode"
+      ]
+    ],
+    "user_id": [
+      [
+        "usercId"
+      ]
+    ],
+    "im_id": [
+      [
+        "imId"
+      ],
+      [
+        "im_id"
+      ]
+    ],
+    "resume_url": [
+      [
+        "resumeUrl"
+      ]
+    ],
+    "name": [
+      [
+        "resName"
+      ]
+    ],
+    "desired_title": [
+      [
+        "wantJobTitle"
+      ]
+    ],
+    "desired_salary": [
+      [
+        "wantSalary"
+      ]
+    ],
+    "current_city": [
+      [
+        "resDqName"
+      ],
+      [
+        "wantDq"
+      ]
+    ],
+    "work_years": [
+      [
+        "workYearsShow"
+      ]
+    ],
+    "edu": [
+      [
+        "resEdulevelName"
+      ]
+    ],
+    "current_company": [
+      [
+        "workExpList",
+        "0",
+        "compName"
+      ]
+    ],
+    "current_title": [
+      [
+        "workExpList",
+        "0",
+        "title"
+      ]
+    ],
+    "school": [
+      [
+        "eduExpList",
+        "0",
+        "schoolName"
+      ]
+    ],
+    "age": [
+      [
+        "ageShow"
+      ]
+    ],
+    "active_status": [
+      [
+        "activeStatus",
+        "name"
+      ],
+      [
+        "offLineOrRefreshTime"
+      ]
+    ]
+  },
+  "resume_body": {
+    "comment": "简历详情请求：表单字段 pageParamVo = JSON 字符串（resume-view 契约，liepin-cli 校准）。",
+    "sfrom": "R_SEARCH_CONDITION"
+  },
+  "resume_fields": {
+    "comment": "简历详情字段路径（resumeDetailVo 形状，与 liepin-cli resume.js 对齐）。project_experience/online_status 是 fallback 键：真实抓取后据『resumeDetailVo 顶层键』日志回填到第一顺位。",
+    "base": [
+      [
+        "baseInfo"
+      ]
+    ],
+    "job_want": [
+      [
+        "jobWant"
+      ]
+    ],
+    "name": [
+      [
+        "baseInfo",
+        "name"
+      ]
+    ],
+    "self_evaluation": [
+      [
+        "selfDescr"
+      ]
+    ],
+    "skill_tags": [
+      [
+        "credentialNames"
+      ]
+    ],
+    "languages": [
+      [
+        "languages"
+      ]
+    ],
+    "work_experience": [
+      [
+        "workExperiences"
+      ]
+    ],
+    "edu_experience": [
+      [
+        "eduExperiences"
+      ]
+    ],
+    "project_experience": [
+      [
+        "proExperiences"
+      ],
+      [
+        "projectExperiences"
+      ],
+      [
+        "projExperiences"
+      ]
+    ],
+    "online_status": [
+      [
+        "onlineDesc"
+      ]
+    ]
+  },
+  "jobs_body": {
+    "comment": "岗位列表请求：requestVo = JSON 字符串（jobmanage.list 契约，liepin-cli 校准）。",
+    "keywordKind": "0",
+    "keyword": "",
+    "curPage": 0,
+    "pageSize": 50,
+    "jobListType": "0",
+    "shareFlag": "2"
+  },
+  "invite_body": {
+    "comment": "to-chat2「发起沟通」body（已从 liepin-cli greet.js 校准）。发起沟通自动使用职位预设招呼语，不发送自定义文本。",
+    "usercIdEncode": "{user_id}",
+    "ejobId": "{job_id}",
+    "imSign": "",
+    "source": "R_SEARCH_CONDITION",
+    "ext": "%7B%7D"
+  },
+  "invite_flow": {
+    "comment": "发起沟通四步链路契约（校准自 liepin-cli greet.js，2026-09）：has-chat（幂等查会话）→ get-job-chat-list（取可沟通岗位+jobKind）→ check-chat-privlege（chatCheckResultCode 须为 can_chat）→ to-chat2（真正发起沟通）。IM 系列端点全部使用 client_id=40342（区别于默认 40156）。",
+    "client_id": "40342",
+    "ok_code": "can_chat",
+    "jobkind_default": "2",
+    "chat_jobs_body": "curPage=0&pageSize=10&_keyword=",
+    "priv_body": {
+      "comment": "权限检查表单（字段名与 to-chat2 不同：oppositeUserId/enumLpScene/jobId/jobkind）。enumLpScene=b_others 是「我发起的沟通」场景。",
+      "oppositeUserId": "{user_id}",
+      "enumLpScene": "b_others",
+      "jobId": "{job_id}",
+      "jobkind": "{jobkind}"
+    },
+    "priv_fields": {
+      "comment": "check-chat-privlege 响应里权限码的取值路径。",
+      "result_code": [
+        [
+          "data",
+          "chatCheckResultCode"
+        ],
+        [
+          "chatCheckResultCode"
+        ]
+      ]
+    },
+    "job_fields": {
+      "comment": "get-job-chat-list 返回项（data.list）字段路径。",
+      "ejob_id": [
+        [
+          "ejobId"
+        ],
+        [
+          "jobId"
+        ]
+      ],
+      "title": [
+        [
+          "jobTitle"
+        ],
+        [
+          "jobName"
+        ],
+        [
+          "title"
+        ]
+      ],
+      "jobkind": [
+        [
+          "jobKind"
+        ],
+        [
+          "jobkind"
+        ],
+        [
+          "kind"
+        ]
+      ]
+    }
+  },
+  "risk_stop_codes": [
+    "4010000",
+    "4010001",
+    "100004",
+    "110000",
+    "000011"
+  ],
+  "auth_expired_codes": [
+    "-1401",
+    "-1701"
+  ],
+  "limits": {
+    "comment": "单轮硬上限（防失控）。",
+    "max_queries_per_run": 20,
+    "max_resume_fetch_per_run": 30,
+    "max_invite_per_batch": 30,
+    "page_size": 20,
+    "max_pages_per_query": 3
+  }
+}
