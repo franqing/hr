@@ -63,11 +63,18 @@
 - [x] 删 `data-win-check` 临时目录（验证完不留残余）
 
 ## 执行记录与备注
-1. **导入曾持续失败的根因 = 猎聘账号级 IM checkin 门（非代码缺陷）**：`get-job-chat-list`（IM 沟通 BFF）
-   返回 `flag=0 code=103160306`，msg 指向 `api-passport account.checkin` 跳转页。连**已登录的官方窗口**用
-   标准请求头调同一接口同样返回该码 → 判定为账号需先完成一次平台安全验证。在登录浏览器打开官方 IM 页
-   `lpt.liepin.com/chat/im` 一次后解除；随后导出 → 重放 → 门户+BFF 双验证 → 落库全链路通过。
-   若同事机器首登后测试连接/导入报 103160306，需在其登录窗口完成该平台验证（或提示打开 IM 页）。
+1. **导入报 `103160306 account.checkin` = 猎聘 IM 沟通 BFF 的安全门（非代码缺陷）**：
+   `get-job-chat-list` 返回 `flag=0 code=103160306`，msg 指向 `api-passport account.checkin` 跳转页。
+   **补验结论（2026-09-05 夜，全新 profile 首登复验）：该门不是"一次性账号风控"，而是每次新登录/新
+   profile 会话都会出现**——同事每台新机首登大概率会撞。
+   - 复验步骤：新 `RECRUIT_DATA_DIR` → 起后端 → 打开浏览器登录（全新 profile）→ 手动登录 → 立即导入
+     → **复现 103160306**；
+   - 缓解：在登录窗口地址栏打开一次 `https://lpt.liepin.com/chat/im`，等 ~1-2 分钟让 IM 页完成 checkin
+     → 再点「立即导入」→ `{ok:true, changed:true} Cookie 已自动导入并保存`；「测试连接」(attach off)
+     随之通过。
+   - 产品建议（Task 9 / 操作手册）：当 BFF 返回 103160306 时 UI 应给出明确中文引导
+     「请在登录窗口打开一次 lpt.liepin.com/chat/im 后，回来再点『立即导入』/『测试连接』」；
+     或登录窗打开登录页后顺带打开该 IM 页一次。
 2. **Edge 后台常驻影响错误路径测试**：本机 Edge 设置"关闭窗口后继续运行后台应用"，手动关登录窗口后
    CDP/进程仍在 → attach 仍可复用（表现为仍成功）。真实"没在运行"态需进程退出；本验收以精确 PID 结束
    app 自拉实例验证了该错误分支，UI 提示正确。
@@ -79,3 +86,14 @@
    将当前有效会话刷新进 repo-data settings（仅改 cookie，未动任何运行数据）后，WSL :8001 拉取结果与原生
    逐条一致。
 5. 数据/密钥均未外泄：明文 cookie 只在本机浏览器 ↔ Fernet 加密库间流转，日志/本清单无明文。
+
+## 补验：全新 profile 首登 → 立即导入（判定 checkin 门是否"一次即免"）
+2026-09-05 深夜补充执行，严格不碰 WSL / 仓库 data/：
+- 新设临时 `RECRUIT_DATA_DIR=data-win2`（全新 app.db、无任何 profile）→ `.venv-win` 起后端 :8000
+  → 设置 `browser_executable=msedge.exe` → 「打开浏览器登录」弹出全新 Edge 专用窗（全新 profile）→ 用户手动登录。
+- **首登后立即「立即导入」→ 复现 `103160306 account.checkin`**（与旧 profile 首次同款）→ 证明该门**非一次性**，
+  每次新登录会话都会要求 checkin，同事新机首登大概率撞。
+- 登录窗口打开一次 `https://lpt.liepin.com/chat/im`（约 1-2 分钟）→ 再点「立即导入」
+  → `{ok:true, changed:true, Cookie 已自动导入并保存}`；随后「测试连接」(attach off) 通过。
+- 已清理：停后端、回收登录浏览器（精确 PID）、删 `data-win2` 临时目录；未改动任何仓库文件。
+
