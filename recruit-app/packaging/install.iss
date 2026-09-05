@@ -54,8 +54,9 @@ begin
   // 只回收本程序自己的后端进程：pythonw.exe 且命令行含 backend.main:app → 精确 PID kill。
   // 绝不 taskkill /IM 整类、绝不碰用户其它进程（spec §4.4 + 全局约束）。
   Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "' +
-    'Get-CimInstance Win32_Process -Filter ''Name=''pythonw.exe'''' | ' +
-    'Where-Object { $_.CommandLine -match ''backend.main:app'' } | ' +
+    'Get-CimInstance Win32_Process | ' +
+    'Where-Object { $_.Name -eq ''pythonw.exe'' -and ' +
+    '$_.CommandLine -match ''backend.main:app'' } | ' +
     'ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"', '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode);
   // 升级：旧 app\ 改名 app.old（Inno 随后全新覆盖写 app\）；data\ 不在其中，天然保留。
