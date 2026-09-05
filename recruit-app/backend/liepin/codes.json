@@ -430,6 +430,9 @@
     "-1401",
     "-1701"
   ],
+  "account_gate_codes": [
+    "103160306"
+  ],
   "limits": {
     "comment": "单轮硬上限（防失控）。",
     "max_queries_per_run": 20,

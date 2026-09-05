@@ -872,6 +872,19 @@ class LiepinSession:
                 raise LiepinLoginError(
                     f"猎聘登录态已失效（code={code} msg={msg or '(空)'}）。"
                     "请用企业账号在真实浏览器登录 lpt.liepin.com 后重新粘贴 Cookie。")
+            # IM BFF account.checkin 安全门（code 103160306；Windows 原生验收 2026-09-05
+            # 实证：每次新登录会话都会出现）。非风控（会话本身有效、重试无益）也非登录
+            # 失效——解除动作 = 在登录浏览器窗口打开一次官方 IM 页让真实 SPA 完成 checkin。
+            # 防呆：未知新码若 msg 指向同一 account.checkin / jump 网关 → 同映射，不落入兜底。
+            if code in self.codes["account_gate_codes"] or (
+                    "account/checkin" in msg or "account.checkin" in msg
+                    or "jump.liepin.com/pc" in msg):
+                raise LiepinRiskError(
+                    f"猎聘账号需先完成一次 IM 消息页平台验证（BFF code={code} account.checkin）。"
+                    "请在『打开浏览器登录』弹出的登录窗口里新开标签页打开 "
+                    "https://lpt.liepin.com/chat/im ，等约 1-2 分钟页面自动完成验证后，"
+                    "回来再点『立即导入』/『测试连接』。粘贴 Cookie 场景请从完成过验证的"
+                    "官方会话重新导出。")
             raise LiepinRiskError(
                 f"BFF 调用失败（契约/权限问题）: flag={flag} code={code} msg={msg or '(空)'}。"
                 "未命中风控清单——对照 liepin-cli 源码校验 codes.json 中的契约。")

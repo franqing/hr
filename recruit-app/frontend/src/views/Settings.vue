@@ -81,7 +81,10 @@ const testLiepin = async () => {
   const attachOn = String(form.browser_attach) === 'true'
   const pasted = form.liepin_cookie && form.liepin_cookie.trim() !== MASKED ? form.liepin_cookie.trim() : ''
   if (!pasted && !masked.liepin_cookie && !attachOn) {
-    ElMessage.warning('请先粘贴猎聘 Cookie（点击测试连接会自动保存）；或开启『liepin 浏览器』模式，复用已登录的 Chrome 直接测试')
+    // 平台分支：原生 = 登录浏览器主路径；WSL 开发 = liepin login / 粘贴 Cookie（spec §4.4/§4.5）
+    ElMessage.warning(isNative.value
+      ? '未配置 Cookie。请先点『打开浏览器登录』，在弹出的专用窗口手动登录，系统会自动导入并保存'
+      : '请先粘贴猎聘 Cookie（点击测试连接会自动保存）；或开启『liepin 浏览器』模式，复用已登录的 Chrome 直接测试')
     return
   }
   testing.value = true

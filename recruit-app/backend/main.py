@@ -432,9 +432,14 @@ def list_liepin_jobs():
     attach = str(cfg.get("browser_attach") or "false").lower() == "true"
     cookie = cfg.get("liepin_cookie", "")
     if not cookie and not attach:
-        raise HTTPException(status_code=400,
-                            detail="未配置猎聘 Cookie，请先在设置页粘贴并测试连接"
-                                   "（或开启『liepin 浏览器』模式后先运行 liepin login）")
+        # 平台分支：原生 = 登录浏览器主路径；WSL 开发 = liepin login / 粘贴 Cookie
+        native = os.name == "nt"
+        raise HTTPException(
+            status_code=400,
+            detail=("未配置猎聘 Cookie。请先在设置页点『打开浏览器登录』，在弹出的专用窗口"
+                    "手动登录，系统会自动导入并保存" if native else
+                    "未配置猎聘 Cookie，请先在设置页粘贴并测试连接"
+                    "（或开启『liepin 浏览器』模式后先运行 liepin login）"))
 
     def _do():
         session = lp.LiepinSession(

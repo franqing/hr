@@ -111,6 +111,24 @@ def test_check_bff_risk_401_login():
         adapter.LiepinSession._check_bff_risk(_fake(), {"httpStatus": 401})
 
 
+# ---------- IM BFF account.checkin 安全门（103160306，Task 8 Windows 验收实证）----------
+def test_check_bff_risk_account_gate_code():
+    # 每次新登录会话都可能撞的账号验证门：不得落入"契约/权限问题"开发者兜底，
+    # 必须给出可操作中文引导（打开官方 IM 页 chat/im 完成一次 checkin）。
+    with pytest.raises(adapter.LiepinRiskError, match="chat/im"):
+        adapter.LiepinSession._check_bff_risk(
+            _fake(), {"flag": 0, "code": "103160306",
+                      "msg": "https://jump.liepin.com/pc?p=%7B%22ticket%22%3A%22abc%22%7D"})
+
+
+def test_check_bff_risk_account_gate_msg_keyword():
+    # 防呆兜底：未来新码若 msg 指向 account.checkin / jump 网关 → 同样映射验证引导。
+    with pytest.raises(adapter.LiepinRiskError, match="chat/im"):
+        adapter.LiepinSession._check_bff_risk(
+            _fake(), {"flag": 0, "code": "888888",
+                      "msg": "https://api-passport.liepin.com/account/checkin?url=%2Fchat"})
+
+
 # ---------- 邀请未校准保护 ----------
 def test_send_invite_placeholder_raises():
     """端点未校准（PLACEHOLDER）时明确报错，不静默发错请求。"""
