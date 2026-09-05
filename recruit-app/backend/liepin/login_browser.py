@@ -116,6 +116,7 @@ def _cdp_alive(base: str) -> bool:
 
 def cdp_base_url() -> str | None:
     """本进程记录中的登录浏览器实例若仍在跑 → 返回 CDP 基址；否则 None。"""
+    global _browser
     with _STATE_LOCK:
         b = _browser
     if not b:
@@ -155,6 +156,7 @@ def open_login_browser(cfg: dict) -> dict:
     只返回 {ok, message} / {ok: False, error}（明文 cookie 绝不出现）。WSL 开发
     模式（os.name != 'nt'）→ 引导文案（回归基线走 liepin login / 粘贴 Cookie）。
     """
+    global _browser
     if os.name != "nt":
         return {"ok": False, "error":
                 "『打开浏览器登录』是 Windows 原生（安装版）能力。WSL 开发请跑 liepin login "
@@ -208,6 +210,7 @@ def open_login_browser(cfg: dict) -> dict:
 
 def close_login_browser() -> None:
     """回收本进程自启的登录浏览器（仅精确 PID，绝不碰用户其它进程）；幂等。"""
+    global _browser
     with _STATE_LOCK:
         b = _browser
         _browser = None

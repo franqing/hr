@@ -1,6 +1,8 @@
 """登录浏览器模块（spec §4.5）纯函数与路径断言：不拉起真实浏览器/不走网络。"""
 from __future__ import annotations
 
+import os
+
 from backend.liepin import login_browser as lb
 
 
@@ -54,3 +56,29 @@ def test_profile_and_cookie_paths_under_env(monkeypatch, tmp_path):
         tmp_path / "d" / "login-profile" / "Default" / "Network" / "Cookies",
         tmp_path / "d" / "login-profile" / "Default" / "Cookies",
     ]
+
+
+# ---- 模块态 _browser 读写（Task 8 Windows 直启捕获：缺 global 声明 →
+# UnboundLocalError；以下三个入口曾全部必炸，含 lifespan 关停路径）----
+def test_close_login_browser_no_instance_is_noop():
+    # 从未开过登录浏览器 → 幂等安静返回（回归：close 内 _browser 读写必须同一全局）
+    assert lb.close_login_browser() is None
+
+
+def test_cdp_base_url_no_instance_returns_none():
+    assert lb.cdp_base_url() is None
+
+
+def test_open_login_browser_no_instance_reports_cleanly(monkeypatch):
+    # 原生门放行（模拟 os.name=='nt'）但解析可执行文件即失败 → 应如实返回
+    # {"ok": False, "error": "打开登录浏览器失败: ..."}，绝不允许 UnboundLocalError
+    # 从 _browser 读取处裸抛（该异常在 try 之外，会直接 500）。
+    monkeypatch.setattr(os, "name", "nt")
+
+    def boom(cfg):
+        raise RuntimeError("stub: 无可执行文件")
+
+    monkeypatch.setattr(lb, "_resolve_login_exe", boom)
+    r = lb.open_login_browser({})
+    assert r["ok"] is False
+    assert r["error"].startswith("打开登录浏览器失败: RuntimeError: stub")
