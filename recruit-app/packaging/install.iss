@@ -54,11 +54,23 @@ begin
   // 只回收本程序自己的后端进程：pythonw.exe 且命令行含 backend.main:app → 精确 PID kill。
   // 绝不 taskkill /IM 整类、绝不碰用户其它进程（spec §4.4 + 全局约束）。
   Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "' +
-    'Get-CimInstance Win32_Process | ' +
-    'Where-Object { $_.Name -eq ''pythonw.exe'' -and ' +
-    '$_.CommandLine -match ''backend.main:app'' } | ' +
-    'ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"', '',
+    'for ($i = 0; $i -lt 3; $i++) {' +
+    '  $p = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -eq ''pythonw.exe'' -and $_.CommandLine -match ''backend.main:app'' })' +
+    '  if ($p.Count -eq 0) { break }' +
+    '  $p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }' +
+    '  Start-Sleep -Milliseconds 400' +
+    '}' +
+    'if ($p.Count -gt 0) { exit 1 }"', '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if ResultCode <> 0 then
+  begin
+    Result := '未能完全停止旧版本的后端进程（进程可能被占用或权限不足）。请手动关闭正在运行的招聘系统后，重新运行安装程序。';
+    Exit;
+  end;
+  // 上一次升级遗留的 app.old 备份：直接删除（数据在 {app}\data，不在备份内）。
+  // 否则第二次跨版本升级时 RenameFile 会撞已存在的 app.old 而失败。
+  if DirExists(ExpandConstant('{app}\app.old')) then
+    DelTree(ExpandConstant('{app}\app.old'), True, True, True);
   // 升级：旧 app\ 改名 app.old（Inno 随后全新覆盖写 app\）；data\ 不在其中，天然保留。
   // 首装时无 app\，判存在再改名。
   if DirExists(ExpandConstant('{app}\app')) then
