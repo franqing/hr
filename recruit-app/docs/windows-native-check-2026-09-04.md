@@ -97,3 +97,18 @@
   → `{ok:true, changed:true, Cookie 已自动导入并保存}`；随后「测试连接」(attach off) 通过。
 - 已清理：停后端、回收登录浏览器（精确 PID）、删 `data-win2` 临时目录；未改动任何仓库文件。
 
+## 复验：103160306 中文引导 + 无 Cookie 提示（commit e39b529 后）
+2026-09-06 复验，Windows 侧全新环境，不碰 WSL / 仓库 data/：
+- 前端重建：Windows 平台 `npm ci`（Linux 装的原依赖缺 rollup Windows 原生件）→ `npm run build` 通过；
+  新 Settings 产物含原生分支文案。
+- 全新 `RECRUIT_DATA_DIR=data-win3` + `.venv-win` 起后端 →「打开浏览器登录」（全新 Edge profile）→ 手动登录
+  → 点「立即导入」→ **toast 为新中文引导**（不再是无信息量的「契约/权限问题 + 长 URL」）：
+  「猎聘账号需先完成一次 IM 消息页平台验证（BFF code=103160306 account.checkin）。请在『打开浏览器登录』
+  弹出的登录窗口里新开标签页打开 https://lpt.liepin.com/chat/im ，等约 1-2 分钟页面自动完成验证后，回来再点
+  『立即导入』/『测试连接』。粘贴 Cookie 场景请从完成过验证的官方会话重新导出。」
+- 按引导在登录窗打开 `chat/im` → 等约 2-3 分钟（窗口本体 BFF 由 103160306 转为 flag=1）→ 再点「立即导入」
+  → **通过**（toast「会话有效：门户与 BFF 会话探测均通过…Cookie 已自动导入并保存」）。
+- 无 Cookie 提示：设置页无 Cookie + attach 关点「测试连接」→ toast「未配置 Cookie。请先点『打开浏览器登录』，
+  在弹出的专用窗口手动登录，系统会自动导入并保存」；`GET /liepin/jobs` 400 同款原生文案。WSL 旧文案不出现。
+- 已清理：停后端、回收登录浏览器（精确 PID）、删 `data-win3`；仓库仅新增上文档记录。
+
