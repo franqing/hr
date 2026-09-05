@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import socket
 
 from backend.liepin import login_browser as lb
 
@@ -82,3 +83,71 @@ def test_open_login_browser_no_instance_reports_cleanly(monkeypatch):
     r = lb.open_login_browser({})
     assert r["ok"] is False
     assert r["error"].startswith("打开登录浏览器失败: RuntimeError: stub")
+
+
+# ---- 端口/CDP 探测（Task 8 用户机 CDP 启动超时根因回归）----
+def test_cdp_alive_socket_probe():
+    # httpx GET /json/version 探测两个坑：① 对非 HTTP 的纯 TCP 端口空等 1s 超时才
+    # 判死；② 受 HTTP(S)_PROXY 环境变量劫持——对 127.0.0.1 也走代理 → 误判不在跑。
+    # CDP 服务器 bind 即 accept：socket connect 成功即可视为可连。此测试对
+    # 「已监听端口」断言 connect 探测语义（旧 httpx 实现在此返回 False → 红灯）。
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    s.listen(1)
+    port = s.getsockname()[1]
+    base = f"http://127.0.0.1:{port}"
+    try:
+        assert lb._cdp_alive(base) is True
+    finally:
+        s.close()
+    assert lb._cdp_alive(base) is False   # 关掉后 → 不在跑
+
+
+def test_port_free_bind_probe():
+    # 修复核心语义：端口可用 = 本机能 bind 上它。connect 探测对 Hyper-V/WSL2
+    # 保留段（netsh excludedportrange）误判——保留端口无监听、connect 被拒，
+    # 但 bind 同样被拒（浏览器 debug 端口因此起不来）。WSL 上无法模拟 Windows
+    # 保留段，此处以真实监听占用锁「占用 → False、释放 → True」的行为契约。
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    s.listen(1)
+    port = s.getsockname()[1]
+    try:
+        assert lb._port_free(port) is False   # 已被监听 → 不可用
+    finally:
+        s.close()
+    assert lb._port_free(port) is True        # 释放 → 可用
+
+
+# ---- 端口/CDP 探测（Task 8 用户机 CDP 启动超时根因回归）----
+def test_cdp_alive_socket_probe():
+    # httpx GET /json/version 探测两个坑：① 对非 HTTP 的纯 TCP 端口空等 1s 超时才
+    # 判死；② 受 HTTP(S)_PROXY 环境变量劫持——对 127.0.0.1 也走代理 → 误判不在跑。
+    # CDP 服务器 bind 即 accept：socket connect 成功即可视为可连。此测试对
+    # 「已监听端口」断言 connect 探测语义（旧 httpx 实现在此返回 False → 红灯）。
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    s.listen(1)
+    port = s.getsockname()[1]
+    base = f"http://127.0.0.1:{port}"
+    try:
+        assert lb._cdp_alive(base) is True
+    finally:
+        s.close()
+    assert lb._cdp_alive(base) is False   # 关掉后 → 不在跑
+
+
+def test_port_free_bind_probe():
+    # 修复核心语义：端口可用 = 本机能 bind 上它。connect 探测对 Hyper-V/WSL2
+    # 保留段（netsh excludedportrange）误判——保留端口无监听、connect 被拒，
+    # 但 bind 同样被拒（浏览器 debug 端口因此起不来）。WSL 上无法模拟 Windows
+    # 保留段，此处以真实监听占用锁「占用 → False、释放 → True」的行为契约。
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    s.listen(1)
+    port = s.getsockname()[1]
+    try:
+        assert lb._port_free(port) is False   # 已被监听 → 不可用
+    finally:
+        s.close()
+    assert lb._port_free(port) is True        # 释放 → 可用

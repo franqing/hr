@@ -97,20 +97,28 @@ def _resolve_login_exe(cfg: dict) -> str:
 
 # ---------- 端口与进程 ----------
 def _port_free(port: int) -> bool:
+    """端口可被本机 bind → True。bind 实测而非 connect 探测：Hyper-V/WSL2 会把
+    一段端口排除出可用范围（netsh excludedportrange）——保留段无监听、connect
+    被拒（旧探测误判空闲），但 bind 同样被拒（浏览器 --remote-debugging-port
+    因此起不来，Task 8 用户机 53471 落在 53466-53565 保留段 → CDP 启动超时）。
+    bind 探测与被拉起浏览器的实际 bind 行为一致。"""
     try:
         with socket.socket() as s:
-            s.settimeout(1.0)
-            return s.connect_ex(("127.0.0.1", port)) != 0
-    except OSError:
+            s.bind(("127.0.0.1", port))
         return True
+    except OSError:
+        return False
 
 
 def _cdp_alive(base: str) -> bool:
+    """CDP 端口是否可连。socket connect 探测——Chromium 调试服务器 bind 即
+    accept，无需发 HTTP；httpx GET 探测会受 HTTP(S)_PROXY 环境变量劫持（对
+    127.0.0.1 也走代理 → 误判不在跑，Task 8 用户机排查候选之一）。"""
     try:
-        import httpx
-        httpx.get(base + "/json/version", timeout=1.0)
-        return True
-    except Exception:  # noqa: BLE001 —— 连接失败/超时一律视为不在跑
+        host, _, port = base.split("://", 1)[1].rstrip("/").rpartition(":")
+        with socket.create_connection((host, int(port)), timeout=1.0):
+            return True
+    except (OSError, ValueError, IndexError):
         return False
 
 
