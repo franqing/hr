@@ -112,3 +112,12 @@
   在弹出的专用窗口手动登录，系统会自动导入并保存」；`GET /liepin/jobs` 400 同款原生文案。WSL 旧文案不出现。
 - 已清理：停后端、回收登录浏览器（精确 PID）、删 `data-win3`；仓库仅新增上文档记录。
 
+
+## 收尾：103160306 文案修复落地并复验通过（2026-09-06）
+- commit e39b529：codes.json 新增 `account_gate_codes=["103160306"]`；`_check_bff_risk` 在开发者
+  「契约/权限问题」兜底前插入安全门分类（code 命中或 msg 指向 account/checkin / jump.liepin.com/pc），
+  报可操作中文引导（打开 `lpt.liepin.com/chat/im` 一次 → 回设置页重试导入）；Settings.vue 测试连接
+  守卫与 /liepin/jobs 无 Cookie 提示按平台分支指『打开浏览器登录』主路径（清除 WSL 时代文案）。
+- Windows 真机复验（用户确认）：重建 dist 后新 profile 首登 → 立即导入撞 103160306 时
+  toast 显示新中文引导（非「契约/权限问题」原始负载）→ 按引导开 chat/im → 重试导入通过。
+- 备注 1 的「产品建议」至此已落地；Task 8 验收完成，Task 9（打包）解锁。
