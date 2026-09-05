@@ -208,7 +208,7 @@ def open_login_browser(cfg: dict) -> dict:
             _browser = {"proc": proc, "port": port, "base": base, "profile": str(profile)}
         log.info("登录浏览器已打开 port=%s（登录由用户手动完成）", port)
         return {"ok": True, "message":
-                f"已弹出专用登录浏览器（端口 {port}）。请在弹出的窗口里<b>手动</b>输入账号"
+                f"已弹出专用登录浏览器（端口 {port}）。请在弹出的窗口里手动输入账号"
                 "密码或扫码登录（系统绝不自动登录）；约 20 秒后会自动把会话导入到这里。"}
     except Exception as e:  # noqa: BLE001 —— 任何失败如实回报，不外泄 cookie
         return {"ok": False, "error":
