@@ -32,6 +32,11 @@ log = logging.getLogger("recruit")
 
 # ---------- settings schema ----------
 # secret=True 的字段存 Fernet 密文；GET 返回掩码占位，保存时跳过占位值。
+# 原生（Windows 安装版）默认浏览器通道 = 本机 msedge：Edge 为 Windows 自带（离线安装包
+# 语义不变），且与用户日常 Edge 同引擎 → 「打开浏览器登录」会话与引擎一致不再每次重登。
+# WSL 开发默认仍随包 chromium（无自带 Edge 可指，且与脚本基线一致）。
+DEFAULT_BROWSER_CHANNEL = "msedge" if os.name == "nt" else "chromium"
+
 SETTINGS_SCHEMA: list[dict] = [
     {"key": "liepin_cookie",      "secret": True,  "label": "猎聘 Cookie"},
     {"key": "liepin_cookie_type", "secret": False, "label": "Cookie 格式",
@@ -48,7 +53,7 @@ SETTINGS_SCHEMA: list[dict] = [
     {"key": "invite_verified",    "secret": False, "label": "邀请链路已验证",
      "default": False},  # 真实单条发送验证通过后勾选，才开放批量
     {"key": "browser_headless",   "secret": False, "default": "true"},
-    {"key": "browser_channel",    "secret": False, "default": "chromium"},
+    {"key": "browser_channel",    "secret": False, "default": DEFAULT_BROWSER_CHANNEL},
     {"key": "browser_executable", "secret": False, "label": "浏览器可执行文件"},
     # 附件模式：默认开启——搜索/测试/邀请复用 `liepin login` 的常驻 Chrome 及其
     # 登录态，不自拉浏览器实例（用户登录态在 liepin-cli 启动的 Chrome profile 里）

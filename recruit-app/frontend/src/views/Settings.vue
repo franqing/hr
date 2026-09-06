@@ -286,7 +286,8 @@ onMounted(load)
           <div class="muted" style="margin-top: 6px; line-height: 1.6">
             <template v-if="isNative">
               <b>默认（开关关闭）＝ 静默模式</b>：运行/拉岗位/邀请全程<b>不弹出任何猎聘页面</b>，
-              靠已保存的 Cookie 在后台登录跑任务（默认用随安装包分发的 Chromium 引擎）。
+              靠已保存的 Cookie 在后台登录跑任务（浏览器通道默认本机 Edge——与你日常浏览器
+              同引擎，「打开浏览器登录」的会话长期保持，不再因引擎来回切换而每次重登）。
               Cookie 来源：设置页点「打开浏览器登录」完成手动登录后自动导入；粘贴 Cookie 兜底。
               <br />
               仅在你想<b>亲眼看着</b>每一步操作时，再打开上面的开关：页面会开在你登录的那个
@@ -315,8 +316,16 @@ onMounted(load)
           <el-col :span="8">
             <el-form-item label="浏览器通道">
               <el-select v-model="form.browser_channel" style="width: 100%">
-                <el-option value="chrome" label="本机 Chrome（推荐）" />
-                <el-option value="chromium" label="Playwright Chromium" />
+                <!-- 原生默认 msedge（main.DEFAULT_BROWSER_CHANNEL）：与用户日常 Edge 同引擎，
+                     登录窗口会话一致不再每次重登；WSL 开发维持 chromium + chrome 选项 -->
+                <template v-if="isNative">
+                  <el-option value="msedge" label="本机 Edge（Windows 自带，推荐）" />
+                  <el-option value="chrome" label="本机 Chrome" />
+                </template>
+                <template v-else>
+                  <el-option value="chrome" label="本机 Chrome（推荐）" />
+                </template>
+                <el-option value="chromium" label="Playwright Chromium（随安装包）" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -325,7 +334,15 @@ onMounted(load)
           <el-input v-model="form.browser_executable" :placeholder="isNative ? '留空自动探测（推荐）。填绝对路径可指定特定浏览器' : '留空自动探测。WSL 下可用：/mnt/c/Program Files/Google/Chrome/Application/chrome.exe'" />
         </el-form-item>
         <el-form-item>
-          <span class="muted">
+          <template v-if="isNative">
+            <span class="muted">
+              默认静默模式使用下方「无头模式 / 浏览器通道 / 可执行文件」以已保存 Cookie 后台运行：
+              <b>无头模式保持开启</b>即完全不弹任何页面（原版行为）；「浏览器通道」默认本机
+              Edge——与「打开浏览器登录」同一引擎，登录一次长期保持。仅当你打开上方
+              「在登录的浏览器里开着页面操作」开关时，才忽略下方这些设置（页面开在登录浏览器窗口里）。
+            </span>
+          </template>
+          <span v-else class="muted">
             默认静默模式使用下方「无头模式 / 浏览器通道 / 可执行文件」以已保存 Cookie 后台运行：
             <b>无头模式保持开启</b>即完全不弹任何页面（原版行为）；「浏览器通道」选 Chrome 即用
             本机 Chrome 引擎跑。仅当你打开上方「在登录的浏览器里开着页面操作」开关时，才忽略

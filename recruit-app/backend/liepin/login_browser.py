@@ -6,9 +6,11 @@
 Cookie 库 mtime，变化时经 Python CDP 导出 → 指纹比对 → 门户+BFF 双验证 → Fernet 落库。
 
 边界与守则：
-- 浏览器跟随设置 channel：默认 = 随包 playwright chromium（Windows 完整版，headed 可用，
-  由 PLAYWRIGHT_BROWSERS_PATH 指向安装版 browsers\\ 目录）；选 chrome = 本机 Chrome +
-  同一专用 profile；解析不到 → 报错引导，不静默换引擎。
+- 浏览器跟随设置 channel：chromium = 随包 playwright chromium（Windows 完整版，headed
+  可用，由 PLAYWRIGHT_BROWSERS_PATH 指向安装版 browsers\\ 目录）；chrome / msedge =
+  本机 Chrome / Edge，共用同一专用 profile。Windows 原生默认 msedge——与你日常 Edge 同
+  引擎，登录窗口会话一致（引擎来回切换会破坏 profile 里的登录态 → 每次重登）。
+  解析不到 → 报错引导，不静默换引擎。
 - 只回收本进程**自己拉起**的实例（启动时记录 PID，精确 terminate/kill）；用户随手手动
   关闭窗口 = 幂等（后续 attach/导出会明确报错引导重新点按钮）；绝不动用户其它浏览器。
 - 端口候选 (53471, 9222)，与 WSL 版 CDP 探测端口同集合；都被占 → 明确报错。
@@ -55,10 +57,17 @@ def cookie_lib_paths() -> list[Path]:
 
 
 # ---------- 浏览器可执行文件解析 ----------
+# 标准安装路径候选（env 键, 相对路径）。Edge 为 Windows 自带，多数装在
+# Program Files (x86) 下；三者都探测保证各安装方式都能命中。
 _CHROME_CANDIDATES = (
     ("PROGRAMFILES", "Google/Chrome/Application/chrome.exe"),
     ("PROGRAMFILES(X86)", "Google/Chrome/Application/chrome.exe"),
     ("LOCALAPPDATA", "Google/Chrome/Application/chrome.exe"),
+)
+_EDGE_CANDIDATES = (
+    ("PROGRAMFILES(X86)", "Microsoft/Edge/Application/msedge.exe"),
+    ("PROGRAMFILES", "Microsoft/Edge/Application/msedge.exe"),
+    ("LOCALAPPDATA", "Microsoft/Edge/Application/msedge.exe"),
 )
 
 
@@ -69,8 +78,9 @@ def _env_key(key: str) -> str:
 
 
 def _resolve_login_exe(cfg: dict) -> str:
-    """登录浏览器可执行文件。优先显式 executable；channel=chrome → 本机 Chrome 标准
-    路径候选；默认 → 随包 playwright chromium（Windows 完整版，headed 可用）。
+    """登录浏览器可执行文件。优先显式 executable；channel=chrome/msedge → 探测本机
+    标准安装路径；默认（chromium）→ 随包 playwright chromium（Windows 完整版，headed
+    可用）。Windows 原生设置层默认已是 msedge（main.DEFAULT_BROWSER_CHANNEL）。
     探测不到 → RuntimeError 清晰引导，绝不静默换引擎。"""
     explicit = (cfg.get("browser_executable") or "").strip()
     if explicit:
@@ -79,15 +89,19 @@ def _resolve_login_exe(cfg: dict) -> str:
             return str(p)
         raise RuntimeError(f"设置的浏览器可执行文件不存在: {explicit}")
     channel = (cfg.get("browser_channel") or "chromium").strip().lower()
-    if channel == "chrome":
-        for key, rel in _CHROME_CANDIDATES:
+    local = {"chrome": (_CHROME_CANDIDATES, "chrome.exe"),
+             "msedge": (_EDGE_CANDIDATES, "msedge.exe")}.get(channel)
+    if local is not None:
+        label = "Chrome" if channel == "chrome" else "Edge"
+        for key, rel in local[0]:
             base = os.environ.get(_env_key(key), "")
             p = Path(base) / rel
             if p.is_file():
                 return str(p)
-        raise RuntimeError("设置『本机 Chrome』但未找到 chrome.exe——装好 Chrome 或改回默认 Chromium")
+        raise RuntimeError(f"设置『本机 {label}』但未找到 {local[1]}——"
+                           f"装好 {label} 或到设置里改回其它浏览器通道")
     if channel != "chromium":
-        raise RuntimeError(f"不支持的浏览器通道: {channel}（原生支持 chromium/chrome）")
+        raise RuntimeError(f"不支持的浏览器通道: {channel}（原生支持 chromium/chrome/msedge）")
     # playwright 随包 chromium 的完整版可执行文件（headed 可用；PLAYWRIGHT_BROWSERS_PATH
     # 指向安装版 browsers\\ 时自动落到随包目录）
     from playwright.sync_api import sync_playwright

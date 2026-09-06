@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 import socket
 
+import pytest
+
 from backend.liepin import login_browser as lb
 
 
@@ -117,3 +119,64 @@ def test_port_free_bind_probe():
     finally:
         s.close()
     assert lb._port_free(port) is True        # 释放 → 可用
+
+
+# ---- _resolve_login_exe：channel → 本机可执行文件（msedge 默认通道回归）。----
+# 只测显式 executable 与 chrome/msedge 本机探测/报错路径；绝不触发 chromium 分支
+# （会真拉起 playwright）。env 探测须先清掉三个候选键（WSL 上可能未设/指向 Windows
+# 路径——Path("") 会退化成相对当前目录，误命中就假绿了）。
+def _fake_local_browser(monkeypatch, tmp_path, env_key, rel):
+    """把三个标准安装 env 键先指到空目录，再把 env_key 指到 tmp_path 并造出
+    rel 相对路径的假浏览器文件 → 返回其绝对路径（该键后续探测必命中它）。"""
+    for k in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+        monkeypatch.setenv(k, str(tmp_path / "empty"))
+    exe = tmp_path / rel
+    exe.parent.mkdir(parents=True, exist_ok=True)
+    exe.write_text("stub", encoding="utf-8")
+    monkeypatch.setenv(env_key, str(tmp_path))
+    return exe
+
+
+def test_resolve_msedge_finds_program_files_x86(monkeypatch, tmp_path):
+    # Edge 多为 Windows 自带、装在 Program Files (x86) → 候选第一项
+    exe = _fake_local_browser(monkeypatch, tmp_path, "PROGRAMFILES(X86)",
+                              "Microsoft/Edge/Application/msedge.exe")
+    assert lb._resolve_login_exe({"browser_channel": "msedge"}) == str(exe)
+
+
+def test_resolve_msedge_missing_raises_guidance(monkeypatch, tmp_path):
+    for k in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+        monkeypatch.setenv(k, str(tmp_path / "empty"))
+    with pytest.raises(RuntimeError, match="本机 Edge"):
+        lb._resolve_login_exe({"browser_channel": "msedge"})
+
+
+def test_resolve_chrome_still_probes_local_install(monkeypatch, tmp_path):
+    # chrome 候选顺序未破坏（PROGRAMFILES 第一）——msedge 重构不得影响既有通道
+    exe = _fake_local_browser(monkeypatch, tmp_path, "PROGRAMFILES",
+                              "Google/Chrome/Application/chrome.exe")
+    assert lb._resolve_login_exe({"browser_channel": "chrome"}) == str(exe)
+
+
+def test_resolve_unsupported_channel_raises_with_supported_list():
+    with pytest.raises(RuntimeError,
+                       match=r"不支持的浏览器通道: safari.*chromium/chrome/msedge"):
+        lb._resolve_login_exe({"browser_channel": "safari"})
+
+
+def test_resolve_explicit_executable_takes_precedence(monkeypatch, tmp_path):
+    # 显式 executable > channel 探测：即使 msedge 探测本会命中，仍以显式路径为准
+    exe = tmp_path / "my-browser.exe"
+    exe.write_text("stub", encoding="utf-8")
+    hit = _fake_local_browser(monkeypatch, tmp_path, "PROGRAMFILES(X86)",
+                              "Microsoft/Edge/Application/msedge.exe")
+    assert hit != exe
+    assert lb._resolve_login_exe({"browser_channel": "msedge",
+                                  "browser_executable": str(exe)}) == str(exe)
+
+
+def test_resolve_missing_explicit_executable_raises(tmp_path):
+    missing = tmp_path / "nope.exe"
+    with pytest.raises(RuntimeError, match="浏览器可执行文件不存在"):
+        lb._resolve_login_exe({"browser_channel": "msedge",
+                               "browser_executable": str(missing)})
