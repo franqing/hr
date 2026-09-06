@@ -1,9 +1,14 @@
 @echo off
-rem RecruitApp 单机版后端启动器（安装版 app\run.bat；被桌面 launcher 与登录计划任务调用）
-rem 注入数据/前端/浏览器目录 → 起 uvicorn（仅 127.0.0.1:8000）→ 日志追加写 data\logs\app.log。
-rem 幂等：8000 上 /health 已通（本程序在跑）→ 直接退出，防双份（spec §4.6）。
+rem RecruitApp standalone backend launcher (installed app\run.bat; used by desktop launcher and logon task)
+rem Injects data/web/browser dirs, starts uvicorn on 127.0.0.1:8000, appends log to data\logs\app.log.
+rem Idempotent: if /health on 8000 already OK (our process), exit to avoid duplicate (spec 4.6).
+rem ASCII-only comments: GBK cmd mis-parses UTF-8 Chinese in batch.
 setlocal
 cd /d "%~dp0"
+rem Portable anaconda python needs its own Library\bin on PATH to load DLLs (_sqlite3/sqlite3.dll)
+rem independent of host PATH - colleague machines do not have anaconda on PATH.
+set "PY_ROOT=%~dp0python"
+set "PATH=%PY_ROOT%;%PY_ROOT%\DLLs;%PY_ROOT%\Library\bin;%PY_ROOT%\Library\mingw-w64\bin;%PY_ROOT%\Library\usr\bin;%PATH%"
 set "DATA_DIR=%LOCALAPPDATA%\RecruitApp\data"
 if not exist "%DATA_DIR%\logs" mkdir "%DATA_DIR%\logs"
 set "RECRUIT_DATA_DIR=%DATA_DIR%"
