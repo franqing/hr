@@ -45,6 +45,19 @@ const refetch = async () => {
   }
 }
 
+// 简历页在专用登录浏览器（与登录同 profile）新标签打开：默认浏览器未登录会要求重登
+const openResume = async () => {
+  const url = cand.value?.resume_link
+  if (!url) return
+  try {
+    const { data } = await api.openResume(url)
+    if (data && data.ok === false) ElMessage.error(data.error || '打开失败')
+    else ElMessage.success(data?.message || '已在登录窗口打开简历页')
+  } catch (e) {
+    ElMessage.error(errMsg(e, '打开简历页失败'))
+  }
+}
+
 const cardRows = () => {
   const c = cand.value?.card || {}
   return [
@@ -96,8 +109,8 @@ onMounted(load)
             <div style="display: flex; justify-content: space-between; align-items: center">
               <h3>评分</h3>
               <div style="display: flex; align-items: center; gap: 14px">
-                <el-tooltip content="需企业账号已登录猎聘，未登录会跳转登录页" placement="top">
-                  <el-link type="primary" :href="cand.resume_link" target="_blank" :disabled="!cand.resume_link">
+                <el-tooltip content="在专用登录浏览器新标签打开（与登录同 profile，企业账号已登录）" placement="top">
+                  <el-link type="primary" :disabled="!cand || !cand.resume_link" @click="openResume">
                     打开猎聘简历页
                   </el-link>
                 </el-tooltip>

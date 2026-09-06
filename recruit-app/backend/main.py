@@ -628,6 +628,27 @@ def open_login_browser_endpoint():
         return {"ok": False, "error": f"打开登录浏览器失败: {type(e).__name__}: {e}"}
 
 
+class ResumeOpenIn(BaseModel):
+    url: str
+
+
+@app.post("/resume/open")
+def open_resume_in_login_browser(body: ResumeOpenIn):
+    """在专用登录浏览器里新标签打开猎聘简历页（与登录同一 profile → 带登录态）。
+
+    前端『打开』简历从 target=_blank（默认浏览器，未登录会要求重登）改走本端点。
+    只放行 lpt.liepin.com 的 http(s) URL，防 SSRF/任意链接；登录浏览器未在运行 →
+    明确引导先点『打开浏览器登录』。
+    """
+    from urllib.parse import urlparse
+    raw = (body.url or "").strip()
+    p = urlparse(raw)
+    if p.scheme not in ("http", "https") or p.netloc.lower() != "lpt.liepin.com":
+        raise HTTPException(status_code=400,
+                            detail="仅支持猎聘官方简历页链接（lpt.liepin.com）")
+    return login_browser.open_url_in_login_browser(raw)
+
+
 # ================= 静态托管（前端零改动，spec §4.3）=================
 # 挂在文件最末：全部既有路由先注册，Starlette 按 routes 顺序匹配——
 # 新路由/既有路由天然优先于末尾 "/" mount。中间件靠后 add = 请求链外层，

@@ -12,6 +12,18 @@ const props = defineProps({
 })
 const router = useRouter()
 const openDetail = (row) => router.push(`/candidates/${row.id}`)
+// 简历页在专用登录浏览器（与登录同 profile）新标签打开：默认浏览器未登录会要求重登
+const openResume = async (row) => {
+  const url = row?.resume_link
+  if (!url) return
+  try {
+    const { data } = await api.openResume(url)
+    if (data && data.ok === false) ElMessage.error(data.error || '打开失败')
+    else ElMessage.success(data?.message || '已在登录窗口打开简历页')
+  } catch (e) {
+    ElMessage.error(errMsg(e, '打开简历页失败'))
+  }
+}
 
 const loading = ref(false)
 const candidates = ref([])
@@ -406,7 +418,7 @@ onBeforeUnmount(() => {
         <el-table-column label="简历" width="90" fixed="right">
           <template #default="{ row }">
             <el-tooltip content="需企业账号已登录猎聘，未登录会跳转登录页" placement="top">
-              <el-link v-if="row.resume_link" type="primary" :href="row.resume_link" target="_blank">打开</el-link>
+              <el-link v-if="row.resume_link" type="primary" @click="openResume(row)">打开</el-link>
               <span v-else class="muted">—</span>
             </el-tooltip>
           </template>

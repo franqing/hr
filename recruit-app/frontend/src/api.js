@@ -13,6 +13,8 @@ export const api = {
   testLiepin: (values) => http.post('/settings/liepin/test', values),
   importLiepin: () => http.post('/settings/liepin/import'),
   openLoginBrowser: () => http.post('/settings/liepin/open-login'),
+  // 在专用登录浏览器（与登录同 profile）新标签打开简历页，避免默认浏览器未登录要求重登
+  openResume: (url) => http.post('/resume/open', { url }),
 
   // profiles（人才画像）
   listProfiles: () => http.get('/profiles'),

@@ -279,6 +279,34 @@ def _with_cdp(base: str, fn, timeout_s: float = 20.0):
     return result["value"]
 
 
+def open_url_in_login_browser(url: str) -> dict:
+    """在专用登录浏览器新标签打开 url（同一 profile → 带登录态，点简历不再要求重登）。
+
+    复用 cdp_base_url + _with_cdp 线程隔离；新开标签后**不关闭**（用户自行查看/关闭），
+    与 attach 复用同一实例语义一致。返回 {ok, message}/{ok: False, error}。
+    """
+    base = cdp_base_url()
+    if not base:
+        return {"ok": False, "error":
+                "登录浏览器没在运行。请先在设置页点『打开浏览器登录』并手动完成猎聘登录。"}
+    try:
+        def _open(browser):
+            for ctx in browser.contexts:
+                try:
+                    page = ctx.new_page()
+                    page.goto(url, timeout=45000, wait_until="domcontentloaded")
+                    return "opened"
+                except Exception:  # noqa: BLE001 —— 换下一个 context
+                    continue
+            return "no_context"
+        r = _with_cdp(base, _open, timeout_s=60)
+        if r == "opened":
+            return {"ok": True, "message": "已在登录浏览器窗口打开简历页"}
+        return {"ok": False, "error": "登录浏览器在线，但在该窗口打开页面失败"}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"在登录浏览器打开页面失败: {type(e).__name__}: {e}"}
+
+
 def export_login_cookies() -> tuple[bool, str, str]:
     """经 Python CDP 导出登录浏览器里 liepin.com 域 cookie → Cookie 头。
 
