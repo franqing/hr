@@ -112,6 +112,25 @@
   在弹出的专用窗口手动登录，系统会自动导入并保存」；`GET /liepin/jobs` 400 同款原生文案。WSL 旧文案不出现。
 - 已清理：停后端、回收登录浏览器（精确 PID）、删 `data-win3`；仓库仅新增上文档记录。
 
+## Task 9 Step 5 安装包自测记录（2026-09-06，本机 Windows）
+**产物**：`packaging/output/recruit-app-setup-{1.0.0|1.1.0|1.2.0}.exe`（ultra 压缩，各 ~1.28GB，7GB stage 构建 ~45-50 分钟/个，stage/output 均 gitignore）。
+**构建期发现并修复的 install.iss 真 bug**（已 commit，与代码一起）：
+1. `[Files] Excludes` 写成三个分开引号串（`"__pycache__","*.pyc",".venv*"`）→ Inno 报 "Mismatched quotes"；改为单引号内逗号分隔。原脚本从未成功编译过。
+2. `PrepareToInstall` 的 powershell 杀进程段：**裸 for/if/exit 写法在 Setup 上下文经 Exec 传给 powershell -Command 会解析失败恒 exit 1**（diag 定位：marker 都写不出；同命令外部/32 位 PS 均 exit 0）；整段包 `try{...}catch{exit 1}` 后实测：无进程→放行、有旧 pythonw(backend.main:app)→3 次内杀掉→放行。含内嵌中文报错语义不变。
+**环境/工具备注**：
+- Inno 6.7.3 默认语言包**不含 ChineseSimplified.isl**（已从官方 issrc 仓库下载补入 ISCC\Languages）。
+- Git Bash 跑 setup 会把 `/VERYSILENT` 等参数路径化成 `D:/Git/...`（MSYS2 转换）→ 需 `MSYS2_ARG_CONV_EXCL="*"`。
+- run.bat 顶部 UTF-8 中文注释在 GBK cmd 下产生一行乱码报错（功能无影响，纯展示；交付前建议注释改 ASCII 或存 GBK/加 chcp 65001）。
+- BUILD.md 两处表述过时：浏览器目录是 `chromium-*\chrome-win64\chrome.exe`（非 chrome-win）；`site-packages` 内唯一 node.exe 是 playwright 自带 driver（必需，非外部 node 依赖；liepin-cli 零命中）。
+- **本机 schtasks /Create 返回"拒绝访问"**（连普通当前用户任务也建不了，环境策略限制）→「开机自启/重启后计划任务拉起」与 launcher 8000 占用 MsgBox、图标双击弹页（wscript 被自动化工具禁用）记为**待试点机/交互会话人工核验**项，代码路径已审阅。
+**Step 5 实测通过项**（1.0.0 干净安装 → 桌面图标生成 → run.bat 起服）：
+- `/health` 通；`app\web` 同源页面 200；首次启动生成 `data\app.db / secret.key / logs\app.log`；`platform_native=true`。
+- 设置页「打开浏览器登录」全流程：手动登录 → 立即导入**首登即复现 103160306 新中文引导** → 登录窗开一次 `chat/im` 后重导 `changed:true` 落库；测试连接（静默 chromium/本机 Chrome 通道）通过。
+- run.bat 幂等（后端在跑再执行 0.4s 退出）。
+- 升级链 **1.0.0 → 1.1.0 → 1.2.0（两级，各带旧数据+旧进程）**：每级 PrepareToInstall 精确杀掉旧 pythonw；`app\` 全新替换、上一级 `app.old` 备份（第二次升级时 v1.0 残留被清并替换为 v1.1）；`data\` 三次 SHA1 恒等 `secret.key 8A8DC6E02DB87C5E100CCE92130E9ABDAF16FBC6`、登录态（已配置 cookie）全程保留、升级后重启即用且测试连接通过。
+**后续（2026-09-06 热更，对应 HEAD 76a71a9 msedge 默认）**：前端 rebuild（新增「本机 Edge」下拉）→ 热更安装版 backend/web/launchers（含 UTF-16LE launch.vbs 修复）→ 通道切 `msedge`（executable 留空走本机 Edge 探测）→ 清理随包 Chromium 混用登录窗并删 `data\login-profile` 拿全新态；下一步由用户在 Edge 专用窗完成**一次**手动登录后长期保持。
+**注意**：三份 EXE 构建于 HEAD 76a71a9/d10afec 之前，**不含 msedge 默认/UTF-16LE vbs**——正式试点包需从当前 HEAD + 修复后 install.iss（MyAppVersion 0.9.0）重新构建一个 ultra 产物。
+
 
 ## 收尾：103160306 文案修复落地并复验通过（2026-09-06）
 - commit e39b529：codes.json 新增 `account_gate_codes=["103160306"]`；`_check_bff_risk` 在开发者
